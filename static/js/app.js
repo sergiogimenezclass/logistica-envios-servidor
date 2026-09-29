@@ -5,6 +5,10 @@
 // Variable de estado global para los envíos obtenidos del backend
 let shipments = [];
 
+// Variables de estado del mapa Leaflet
+let map = null;
+let markersLayer = null;
+
 // Elementos del DOM de Navegación y Vistas
 const tabClient = document.getElementById("tab-client");
 const tabOperator = document.getElementById("tab-operator");
@@ -35,6 +39,10 @@ window.switchRole = function (role) {
 
         tabClient.className = "nav-btn nav-btn-active";
         tabOperator.className = "nav-btn nav-btn-inactive";
+
+        setTimeout(() => {
+            if (map) map.invalidateSize();
+        }, 150);
     } else {
         viewOperator.classList.remove("hidden");
         viewOperator.classList.add("grid");
@@ -47,6 +55,60 @@ window.switchRole = function (role) {
         updateOperatorStats();
     }
 };
+
+/**
+ * Inicializa el mapa Leaflet en el contenedor map-container
+ */
+function setupMap() {
+    if (!document.getElementById("map-container")) return;
+    if (map) return;
+
+    map = L.map("map-container", {
+        zoomControl: true
+    }).setView([-34.6037, -58.3816], 12);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contribuyentes'
+    }).addTo(map);
+
+    markersLayer = L.layerGroup().addTo(map);
+    refreshMapMarkers();
+}
+
+/**
+ * Redibuja los marcadores de los envíos sobre el mapa
+ */
+function refreshMapMarkers() {
+    if (!markersLayer) return;
+    markersLayer.clearLayers();
+
+    shipments.forEach(item => {
+        if (!item.lat || !item.lon) return;
+
+        const markerColor = item.status === "Entregado" ? "#10b981" : (item.status === "En camino" ? "#FF6200" : "#f59e0b");
+
+        const customIcon = L.divIcon({
+            className: "custom-pin",
+            html: `<div style="background-color: ${markerColor}; width: 12px; height: 12px; border-radius: 50%; border: 2px solid #ffffff; box-shadow: 0px 1px 4px rgba(0,0,0,0.25);"></div>`,
+            iconSize: [12, 12],
+            iconAnchor: [6, 6]
+        });
+
+        const marker = L.marker([item.lat, item.lon], { icon: customIcon });
+
+        const popupContent = `
+  <div style="font-size: 12px; display: flex; flex-direction: column; gap: 4px;">
+    <div style="font-family: var(--font-mono); font-weight: 700; color: var(--color-carbon-950);">${item.trackingCode}</div>
+    <div style="color: var(--color-carbon-600); font-weight: 500;">${item.recipient}</div>
+    <div style="color: var(--color-carbon-500); font-size: 11px;">${item.address}</div>
+  </div>
+`;
+
+        marker.bindPopup(popupContent);
+        marker.addTo(markersLayer);
+    });
+}
 
 /**
  * Devuelve el HTML del badge de estado
@@ -156,8 +218,9 @@ async function fetchShipments() {
         shipments = await response.json();
         console.log("Envíos cargados desde la API REST Flask:", shipments);
         
-        // Actualizar interfaz del operador
+        // Actualizar interfaz del operador y marcadores del mapa
         renderShipmentsTable();
+        refreshMapMarkers();
         return shipments;
     } catch (error) {
         console.error("Error al consultar /api/envios:", error);
@@ -167,5 +230,6 @@ async function fetchShipments() {
 
 // Inicialización al cargar el DOM
 document.addEventListener("DOMContentLoaded", () => {
+    setupMap();
     fetchShipments();
 });
