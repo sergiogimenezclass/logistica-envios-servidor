@@ -1,14 +1,29 @@
 // ============================================================================
-// LOGITRACK EXPRESS — FASE 2: MIGRACIÓN A BACKEND FLASK + SQLITE
-// ============================================================================
-// Nota pedagógica: El código de JavaScript cliente ha sido deshabilitado temporalmente.
-// Se mantendrá resguardado en `app.js.bak`.
-// 
-// Próximos pasos:
-// 1. Construir el servidor backend en Python (`app.py`) con Flask y SQLite.
-// 2. Definir los endpoints RESTful (`/api/envios`).
-// 3. Re-implementar gradualmente la interacción en `app.js` utilizando `fetch`
-//    para comunicarse con el servidor Python.
+// LOGITRACK EXPRESS — FASE 2: CONSUMO DE API RESTFUL FLASK
 // ============================================================================
 
-console.log("LogiTrack Express: JavaScript cliente deshabilitado temporalmente para la migración a Flask + SQLite.");
+// Variable de estado global para los envíos obtenidos del backend
+let shipments = [];
+
+/**
+ * Petición asíncrona para obtener la lista de envíos desde la API Flask (/api/envios)
+ */
+async function fetchShipments() {
+    try {
+        const response = await fetch('/api/envios');
+        if (!response.ok) {
+            throw new Error(`Error HTTP: ${response.status}`);
+        }
+        shipments = await response.json();
+        console.log("Envíos cargados desde la API REST Flask:", shipments);
+        return shipments;
+    } catch (error) {
+        console.error("Error al consultar /api/envios:", error);
+        return [];
+    }
+}
+
+// Inicialización básica al cargar la página
+document.addEventListener("DOMContentLoaded", () => {
+    fetchShipments();
+});
