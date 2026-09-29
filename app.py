@@ -1,6 +1,6 @@
 import os
 import sqlite3
-from flask import Flask, render_template
+from flask import Flask, jsonify, render_template
 
 # Inicializar aplicación Flask
 app = Flask(__name__)
@@ -52,6 +52,28 @@ def init_db():
 @app.route('/')
 def index():
     return render_template('index.html')
+
+# Endpoint API REST: Obtener todos los envíos
+@app.route('/api/envios', methods=['GET'])
+def get_envios():
+    conn = get_db_connection()
+    envios = conn.execute('SELECT * FROM envios').fetchall()
+    conn.close()
+    
+    result = []
+    for e in envios:
+        result.append({
+            'id': e['id'],
+            'trackingCode': e['tracking_code'],
+            'recipient': e['recipient'],
+            'address': e['address'],
+            'status': e['status'],
+            'packageType': e['package_type'],
+            'pin': e['pin'],
+            'lat': e['lat'],
+            'lon': e['lon']
+        })
+    return jsonify(result), 200
 
 if __name__ == '__main__':
     init_db()
