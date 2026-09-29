@@ -1,5 +1,9 @@
-import os
-from flask import Flask, send_from_directory
+from flask import Flask, render_template
 
-# 1.1: Inicializar la aplicación Flask
+# Inicializar aplicación Flask
 app = Flask(__name__)
+
+# Ruta principal: sirve templates/index.html
+@app.route('/')
+def index():
+    return render_template('index.html')
