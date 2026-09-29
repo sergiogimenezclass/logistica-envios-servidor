@@ -5,6 +5,12 @@
 // Variable de estado global para los envíos obtenidos del backend
 let shipments = [];
 
+// Elementos del DOM de Navegación y Vistas
+const tabClient = document.getElementById("tab-client");
+const tabOperator = document.getElementById("tab-operator");
+const viewClient = document.getElementById("view-client");
+const viewOperator = document.getElementById("view-operator");
+
 // Elementos del DOM del Operador
 const tableBody = document.getElementById("shipments-table-body");
 const counterBadge = document.getElementById("counter-badge");
@@ -14,6 +20,33 @@ const statTotal = document.getElementById("stat-total");
 const statPrep = document.getElementById("stat-prep");
 const statTransit = document.getElementById("stat-transit");
 const statDelivered = document.getElementById("stat-delivered");
+
+/**
+ * Alterna la vista activa entre el 'Portal de Cliente' y el 'Panel de Operador'
+ */
+window.switchRole = function (role) {
+    if (!viewClient || !viewOperator) return;
+
+    if (role === 'client') {
+        viewClient.classList.remove("hidden");
+        viewClient.classList.add("grid");
+        viewOperator.classList.add("hidden");
+        viewOperator.classList.remove("grid");
+
+        tabClient.className = "nav-btn nav-btn-active";
+        tabOperator.className = "nav-btn nav-btn-inactive";
+    } else {
+        viewOperator.classList.remove("hidden");
+        viewOperator.classList.add("grid");
+        viewClient.classList.add("hidden");
+        viewClient.classList.remove("grid");
+
+        tabOperator.className = "nav-btn nav-btn-active";
+        tabClient.className = "nav-btn nav-btn-inactive";
+
+        updateOperatorStats();
+    }
+};
 
 /**
  * Devuelve el HTML del badge de estado
