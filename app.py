@@ -54,5 +54,6 @@ def index():
     return render_template('index.html')
 
 if __name__ == '__main__':
-    print("Servidor Flask inicializado en http://localhost:5000")
+    init_db()
+    print("Base de datos SQLite inicializada. Servidor en http://localhost:5000")
     app.run(host='0.0.0.0', port=5000, debug=True)
