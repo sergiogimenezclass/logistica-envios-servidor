@@ -520,6 +520,38 @@
         </div>
     </div>
 
+    <!-- ========================================================= -->
+    <!-- MODAL 3: CONFIRMACIÓN DE ELIMINACIÓN DE ENVÍO             -->
+    <!-- ========================================================= -->
+    <div id="delete-modal" class="modal-backdrop hidden">
+        <div class="modal-card modal-sm">
+            <div class="modal-header">
+                <span style="font-size: 12px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 1px; color: var(--color-rose-600); font-weight: 700;">Confirmar Baja</span>
+                <button onclick="closeDeleteModal()" style="color: var(--color-carbon-400); background: none; border: none; font-size: 16px; font-weight: 700; cursor: pointer;">✕</button>
+            </div>
+
+            <div>
+                <h3 style="font-size: 16px; font-weight: 700; color: var(--color-carbon-950);">Eliminar Registro de Envío</h3>
+                <p style="font-size: 12px; color: var(--color-carbon-500); margin-top: 4px;">Esta acción eliminará de forma permanente el paquete de la base de datos SQLite.</p>
+            </div>
+
+            <div style="padding: 16px; background-color: var(--color-carbon-50); border: 1px solid var(--color-carbon-200); border-radius: 8px; display: flex; flex-direction: column; gap: 4px; text-align: center;">
+                <span style="font-size: 11px; font-family: var(--font-mono); color: var(--color-carbon-500); text-transform: uppercase; font-weight: 500;">Guía a Eliminar</span>
+                <strong id="delete-modal-tracking" style="font-size: 16px; font-family: var(--font-mono); color: var(--color-rose-600);">AR-XXXX</strong>
+                <span id="delete-modal-recipient" style="font-size: 12px; color: var(--color-carbon-700); font-weight: 600;">Destinatario</span>
+            </div>
+
+            <div class="modal-actions">
+                <button onclick="closeDeleteModal()" class="btn-secondary-light" style="flex: 1; padding: 8px;">
+                    Cancelar
+                </button>
+                <button id="btn-confirm-delete" class="btn-primary-dark" style="flex: 1; padding: 8px; justify-content: center; background-color: var(--color-rose-600); border-color: var(--color-rose-600);">
+                    Sí, Eliminar
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Contenedor para Notificaciones Toast -->
     <div id="toast-container"></div>
 

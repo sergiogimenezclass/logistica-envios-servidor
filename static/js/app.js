@@ -799,19 +799,39 @@ async function deleteShipment(id) {
     }
 }
 
+let pendingDeleteId = null;
+
 /**
- * Confirma y ejecuta la eliminación de un envío desde el panel de operador
+ * Abre el modal de confirmación de eliminación
  */
-window.confirmDeleteShipment = async function (id) {
+window.confirmDeleteShipment = function (id) {
     const item = shipments.find(s => s.id === id);
     if (!item) return;
-    if (confirm(`¿Está seguro de eliminar el envío ${item.trackingCode} (${item.recipient})?`)) {
-        const success = await deleteShipment(id);
-        if (success) {
-            showToast(`Envío ${item.trackingCode} eliminado`, "warning");
-            await fetchShipments();
-        }
+
+    pendingDeleteId = id;
+    const modal = document.getElementById("delete-modal");
+    const trackingEl = document.getElementById("delete-modal-tracking");
+    const recipientEl = document.getElementById("delete-modal-recipient");
+
+    if (trackingEl) trackingEl.textContent = item.trackingCode;
+    if (recipientEl) recipientEl.textContent = `${item.recipient} — ${item.address}`;
+
+    if (modal) {
+        modal.classList.remove("hidden");
+        modal.classList.add("flex");
     }
+};
+
+/**
+ * Cierra el modal de confirmación de eliminación
+ */
+window.closeDeleteModal = function () {
+    const modal = document.getElementById("delete-modal");
+    if (modal) {
+        modal.classList.add("hidden");
+        modal.classList.remove("flex");
+    }
+    pendingDeleteId = null;
 };
 
 // Inicialización al cargar el DOM
@@ -839,6 +859,22 @@ document.addEventListener("DOMContentLoaded", () => {
     if (pinInputCode) pinInputCode.addEventListener("keypress", (e) => {
         if (e.key === "Enter") validateDeliveryPin();
     });
+
+    const btnConfirmDelete = document.getElementById("btn-confirm-delete");
+    if (btnConfirmDelete) {
+        btnConfirmDelete.addEventListener("click", async () => {
+            if (!pendingDeleteId) return;
+            const idToDelete = pendingDeleteId;
+            const item = shipments.find(s => s.id === idToDelete);
+            const tracking = item ? item.trackingCode : `#${idToDelete}`;
+            closeDeleteModal();
+            const success = await deleteShipment(idToDelete);
+            if (success) {
+                showToast(`Envío ${tracking} eliminado correctamente`, "warning");
+                await fetchShipments();
+            }
+        });
+    }
 
     speedButtons.forEach(btn => {
         btn.addEventListener("click", () => {
