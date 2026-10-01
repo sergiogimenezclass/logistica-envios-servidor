@@ -1,71 +1,110 @@
-# Arquitectura por Capas en Flask — LogiTrack Express
+# Arquitectura por Capas en Flask — Guía Pedagógica y Estructural
 
-Este documento registra el proceso de refactorización y diseño de la arquitectura en capas aplicada sobre el backend Python Flask del proyecto **LogiTrack Express**.
-
----
-
-## 🏛️ Motivación y Objetivos
-Inicialmente, la aplicación concentraba toda la lógica en un único archivo (`app.py`), mezclando:
-- Inicialización y conexión a la base de datos SQLite.
-- Sentencias SQL puras (`SELECT`, `INSERT`, `UPDATE`, `DELETE`).
-- Reglas de negocio y formateo de respuestas JSON.
-- Definición de rutas HTTP y renderizado de plantillas web.
-
-El objetivo de la refactorización es aplicar el principio de **Separación de Responsabilidades (SoC - Separation of Concerns)** mediante una **Arquitectura en Capas** modularizada con **Blueprints** y el patrón **Application Factory**.
+Este documento explica de forma conceptual y práctica la **Arquitectura en Capas** implementada en la aplicación **LogiTrack Express**, detallando el rol, la responsabilidad y la justificación técnica de cada componente.
 
 ---
 
-## 📂 Estructura de Directorios
+## 💡 ¿Por qué trabajar en capas? (Separación de Responsabilidades)
+
+En el desarrollo de software, mezclar la conexión a la base de datos, las consultas SQL, las reglas de negocio y los endpoints en un solo archivo (como `app.py`) crea lo que se conoce como **"Código Espagueti"** o **"Monolito en Archivo Único"**. 
+
+La **Arquitectura en Capas** propone organizar el código según el principio de **Separación de Responsabilidades (SoC)**: cada módulo tiene un único trabajo bien definido y solo interactúa con las capas inmediatamente adyacentes.
+
+---
+
+## 🏛️ Mapa de la Arquitectura y Flujo de Datos
 
 ```text
-logistica-envios-servidor/
-├── app/
-│   ├── __init__.py           # Application Factory (create_app)
-│   ├── db.py                 # Capa 1: Gestión de Base de Datos SQLite
-│   ├── models/               # Capa 2: Acceso a Datos (SQL)
-│   │   └── envio_model.py
-│   ├── services/             # Capa 3: Lógica de Negocio y Formateo
-│   │   └── envio_service.py
-│   └── routes/               # Capa 4: Controladores / Endpoints (Blueprints)
-│       ├── web_routes.py
-│       └── api_routes.py
-├── docs/                     # Documentación técnica del proyecto
-│   └── arquitectura_capas_flask.md
-├── run.py                    # Punto de entrada ejecutable
-├── app.py                    # Wrapper compatible
-├── database.db               # Base de datos SQLite
-├── static/                   # CSS, JS, activos del cliente
-└── templates/                # Plantillas HTML (index.html)
+[ Cliente (Navegador / Frontend JS) ]
+               │  ▲
+   Petición    │  │  Respuesta JSON / HTML
+      HTTP     ▼  │
+┌──────────────────────────────────────────────────┐
+│  CAPA 4: Controladores y Rutas (Blueprints)      │  <-- app/routes/
+│  (Recibe la HTTP Request y emite la HTTP Response)│
+└────────────────────────┬─────────────────────────┘
+                         │ 
+                         ▼
+┌──────────────────────────────────────────────────┐
+│  CAPA 3: Servicios y Lógica de Negocio           │  <-- app/services/
+│  (Valida datos, aplica reglas y mapea formatos)  │
+└────────────────────────┬─────────────────────────┘
+                         │ 
+                         ▼
+┌──────────────────────────────────────────────────┐
+│  CAPA 2: Acceso a Datos / Modelos                │  <-- app/models/
+│  (Ejecuta sentencias SQL puras contra la DB)      │
+└────────────────────────┬─────────────────────────┘
+                         │ 
+                         ▼
+┌──────────────────────────────────────────────────┐
+│  CAPA 1: Configuración de Base de Datos           │  <-- app/db.py
+│  (Maneja conexiones físicas SQLite e init_db)    │
+└──────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 🛠️ Detalle de las Capas
+## 📚 Explicación Pedagógica de cada Capa
 
-### 1. Capa de Base de Datos (`app/db.py`)
-- **Función**: Gestionar la ruta del archivo `database.db`, proveer la función `get_db_connection()` con `sqlite3.Row` y ejecutar la siembra inicial `init_db()`.
-- **Ventaja**: Aísla el driver SQLite y la configuración de persistencia del resto de la aplicación.
-
-### 2. Capa de Acceso a Datos (`app/models/envio_model.py`)
-- **Función**: Contiene las funciones SQL puras (`select_all_envios`, `select_envio_by_tracking`, `insert_envio`, `update_envio`, `delete_envio`).
-- **Ventaja**: Ninguna otra capa interactúa directamente con SQL ni conoce la estructura de las tablas.
-
-### 3. Capa de Lógica de Negocio (`app/services/envio_service.py`)
-- **Función**: Mapear registros `sqlite3.Row` (`snake_case`) a objetos/diccionarios cliente (`camelCase`), ejecutar validaciones de negocio y manejar errores lógicos.
-- **Ventaja**: Permite reutilizar la lógica de negocio sin duplicarla entre controladores web o APIs REST.
-
-### 4. Capa de Controladores / Rutas (`app/routes/`)
-- **`web_routes.py`**: Define el `web_bp` para la entrega de la vista HTML principal (`GET /`).
-- **`api_routes.py`**: Define el `api_bp` (`/api/envios`) para los verbos REST (`GET`, `POST`, `PUT`, `DELETE`).
-- **Ventaja**: Agrupa endpoints por dominio usando **Blueprints** de Flask.
-
-### 5. Application Factory Pattern (`app/__init__.py`)
-- **Función**: Provee la función `create_app()` que instancia Flask, inicializa la DB y registra los Blueprints.
-- **Ventaja**: Previene problemas de importación circular (*circular imports*) y simplifica el entorno de pruebas.
+### 1️⃣ Capa de Base de Datos (`app/db.py`)
+* **¿Qué es?**: La infraestructura base encargada de comunicarse físicamente con el motor de base de datos (SQLite).
+* **Analogía**: Es el **electricista / plomero** del edificio: se encarga de los caños y la infraestructura de conexión física.
+* **Responsabilidad Única**: 
+  - Abrir y cerrar conexiones a `database.db` (`get_db_connection()`).
+  - Asegurar la creación inicial de tablas y registros semilla (`init_db()`).
+* **¿Por qué existe?**: Si el día de mañana se cambia de SQLite a PostgreSQL o MySQL, solo se modifica este archivo de infraestructura sin alterar la lógica de negocio ni las rutas.
 
 ---
 
-## 📊 Beneficios Obtenidos
-1. **Mantenibilidad**: Código limpio y fácil de navegar.
-2. **Escalabilidad**: Posibilidad de cambiar el ORM/BD o agregar nuevas entidades sin reescribir controladores.
-3. **Testabilidad**: Cada capa se puede probar de forma independiente mediante mocks o bases de datos de prueba.
+### 2️⃣ Capa de Acceso a Datos / Modelos (`app/models/envio_model.py`)
+* **¿What is? / ¿Qué es?**: El módulo que traduce las operaciones sobre objetos hacia lenguaje **SQL puras** (`SELECT`, `INSERT`, `UPDATE`, `DELETE`).
+* **Analogía**: Es el **archivista de un depósito**: conoce exactamente en qué estante guardar o buscar una carpeta física (registros en las filas de las tablas).
+* **Responsabilidad Única**:
+  - Ejecutar `SELECT * FROM envios` o `INSERT INTO envios ...`.
+  - Retornar filas puras de la base de datos (`sqlite3.Row`).
+* **Regla de Oro**: Esta capa **nunca** debe enterarse de qué es una petición HTTP ni de qué formato necesita el cliente web en el navegador.
+
+---
+
+### 3️⃣ Capa de Servicios y Lógica de Negocio (`app/services/envio_service.py`)
+* **¿Qué es?**: El "cerebro" u organizador central de la aplicación.
+* **Analogía**: Es el **gerente de operaciones**: recibe la solicitud, verifica si se cumplen las políticas del negocio (campos obligatorios, unicidad de código, PIN válido) y le ordena al archivista (Model) lo que debe hacer.
+* **Responsabilidad Única**:
+  - Mapear nombres de columnas de base de datos (`snake_case` como `tracking_code`) a las propiedades que espera el frontend en JavaScript (`camelCase` como `trackingCode`).
+  - Validar reglas operativas (ej. verificar si un código de seguimiento ya existe antes de crearlo).
+  - Lanzar excepciones o devolver errores de negocio claros.
+* **Regla de Oro**: Los servicios son completamente independientes del framework web. No saben lo que es un `request` ni un `jsonify`.
+
+---
+
+### 4️⃣ Capa de Controladores y Rutas (`app/routes/`)
+* **¿Qué es?**: La cara visible de la API REST y el servidor web.
+* **Analogía**: Es la **recepcionista / mozo** de un restaurante: recibe el pedido del cliente (Petición HTTP), se lo entrega al cocinero (Servicio) y cuando la comida está lista la sirve en el plato adecuado (Respuesta JSON o página HTML).
+* **Componentes**:
+  - **`web_routes.py`**: Sirve páginas web HTML (`render_template`).
+  - **`api_routes.py`**: Procesa verbos HTTP (`GET`, `POST`, `PUT`, `DELETE`) y responde objetos JSON (`jsonify`).
+* **Herramienta clave (Blueprints)**: Permite dividir las rutas del sistema en carpetas o módulos independientes sin acumular cientos de líneas en `app.py`.
+
+---
+
+### 5️⃣ Capa de Ensamblado: Application Factory (`app/__init__.py`)
+* **¿Qué es?**: La función creadora (`create_app()`) que pone a funcionar todas las piezas juntas cuando arranca el servidor.
+* **Analogía**: Es la **llave de encendido del auto**: al girarla, arranca el motor, conecta el tablero y activa la radio.
+* **Responsabilidad Única**:
+  - Instanciar la aplicación Flask (`Flask(__name__)`).
+  - Ejecutar la inicialización de la base de datos.
+  - Registrar los Blueprints (`web_bp` y `api_bp`).
+* **Ventaja técnica**: Previene el problema clásico de importaciones circulares (*circular import errors*) en Python.
+
+---
+
+## 📋 Resumen de Responsabilidades
+
+| Capa | Archivo | Recibe | Devuelve | Rol Principal |
+| :--- | :--- | :--- | :--- | :--- |
+| **Infraestructura** | `app/db.py` | Parámetros de conexión | Objeto `sqlite3.Connection` | Gestiona el archivo `.db` y DDL inicial. |
+| **Modelo** | `app/models/envio_model.py` | Variables / Filtros | Filas de BD (`sqlite3.Row`) | Ejecuta sentencias SQL puras. |
+| **Servicio** | `app/services/envio_service.py` | DTOs / Diccionarios | Diccionarios `camelCase` o Excepciones | Aplica reglas de negocio y transforma datos. |
+| **Controlador** | `app/routes/api_routes.py` | Petición HTTP (`request`) | Respuesta HTTP (`jsonify`, Status Code) | Atiende la comunicación con el cliente web. |
+| **Factory** | `app/__init__.py` | Configuración | Aplicación Flask armada | Inicializa y ensambla toda la arquitectura. |
