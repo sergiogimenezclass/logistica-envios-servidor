@@ -143,6 +143,49 @@ def create_envio():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# Endpoint API REST: Actualizar un envío existente por ID
+@app.route('/api/envios/<int:id>', methods=['PUT'])
+def update_envio(id):
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'JSON payload requerido'}), 400
+        
+    conn = get_db_connection()
+    envio = conn.execute('SELECT * FROM envios WHERE id = ?', (id,)).fetchone()
+    if not envio:
+        conn.close()
+        return jsonify({'error': 'Envío no encontrado'}), 404
+        
+    tracking_code = data.get('trackingCode', envio['tracking_code'])
+    recipient = data.get('recipient', envio['recipient'])
+    address = data.get('address', envio['address'])
+    status = data.get('status', envio['status'])
+    package_type = data.get('packageType', envio['package_type'])
+    pin = data.get('pin', envio['pin'])
+    lat = data.get('lat', envio['lat'])
+    lon = data.get('lon', envio['lon'])
+    
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE envios
+        SET tracking_code = ?, recipient = ?, address = ?, status = ?, package_type = ?, pin = ?, lat = ?, lon = ?
+        WHERE id = ?
+    ''', (tracking_code, recipient, address, status, package_type, pin, lat, lon, id))
+    conn.commit()
+    conn.close()
+    
+    return jsonify({
+        'id': id,
+        'trackingCode': tracking_code,
+        'recipient': recipient,
+        'address': address,
+        'status': status,
+        'packageType': package_type,
+        'pin': pin,
+        'lat': lat,
+        'lon': lon
+    }), 200
+
 if __name__ == '__main__':
     init_db()
     print("Base de datos SQLite inicializada. Servidor en http://localhost:5000")
