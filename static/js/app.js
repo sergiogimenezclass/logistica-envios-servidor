@@ -48,6 +48,21 @@ const btnSimPlayText = document.getElementById("btn-sim-play-text");
 const btnSimPlayIcon = document.getElementById("btn-sim-play-icon");
 
 // Elementos del DOM del Operador
+const shipmentForm = document.getElementById("shipment-form");
+const editIdInput = document.getElementById("edit-id");
+const trackingCodeInput = document.getElementById("tracking-code");
+const recipientInput = document.getElementById("recipient");
+const addressInput = document.getElementById("address");
+const statusSelect = document.getElementById("status");
+const packageTypeSelect = document.getElementById("package-type");
+const packagePinInput = document.getElementById("package-pin");
+const btnGenerateCode = document.getElementById("btn-generate-code");
+const formTitle = document.getElementById("form-title");
+const formBadge = document.getElementById("form-badge");
+const btnSubmit = document.getElementById("btn-submit");
+const btnSubmitText = document.getElementById("btn-submit-text");
+const btnSpinner = document.getElementById("btn-spinner");
+const btnCancel = document.getElementById("btn-cancel");
 const tableBody = document.getElementById("shipments-table-body");
 const counterBadge = document.getElementById("counter-badge");
 
@@ -56,6 +71,16 @@ const statTotal = document.getElementById("stat-total");
 const statPrep = document.getElementById("stat-prep");
 const statTransit = document.getElementById("stat-transit");
 const statDelivered = document.getElementById("stat-delivered");
+
+/** Genera un PIN aleatorio de 4 dígitos */
+function generateRandomPin() {
+    return Math.floor(1000 + Math.random() * 9000).toString();
+}
+
+/** Genera un número de guía aleatorio con prefijo AR- */
+function generateRandomTracking() {
+    return "AR-" + Math.floor(1000 + Math.random() * 9000).toString();
+}
 
 /**
  * Muestra una notificación emergente tipo Toast
@@ -175,6 +200,36 @@ function refreshMapMarkers() {
         marker.bindPopup(popupContent);
         marker.addTo(markersLayer);
     });
+}
+
+/**
+ * Realiza la geocodificación de una dirección a través de Nominatim
+ */
+async function geocodeAddress(queryAddress) {
+    const endpoint = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryAddress)}`;
+
+    try {
+        const response = await fetch(endpoint, {
+            headers: { "Accept-Language": "es" }
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            if (Array.isArray(data) && data.length > 0) {
+                return {
+                    lat: parseFloat(data[0].lat),
+                    lon: parseFloat(data[0].lon)
+                };
+            }
+        }
+    } catch (err) {
+        console.warn("Geocodificación con fallback:", err);
+    }
+
+    return {
+        lat: -34.6037 + (Math.random() - 0.5) * 0.08,
+        lon: -58.3816 + (Math.random() - 0.5) * 0.08
+    };
 }
 
 /**
@@ -488,10 +543,45 @@ async function fetchShipmentByTracking(code) {
     }
 }
 
+/**
+ * Petición asíncrona POST para crear un nuevo envío en la API Flask
+ */
+async function createShipment(shipmentData) {
+    try {
+        const response = await fetch('/api/envios', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(shipmentData)
+        });
+
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error || `Error HTTP ${response.status}`);
+        }
+
+        const createdShipment = await response.json();
+        console.log("Nuevo envío creado en backend SQLite:", createdShipment);
+        return createdShipment;
+    } catch (error) {
+        console.error("Error al crear envío vía POST /api/envios:", error);
+        showToast(error.message || "Error al crear envío", "error");
+        return null;
+    }
+}
+
 // Inicialización al cargar el DOM
 document.addEventListener("DOMContentLoaded", () => {
+    if (packagePinInput) packagePinInput.value = generateRandomPin();
+    if (trackingCodeInput) trackingCodeInput.value = generateRandomTracking();
+
     setupMap();
     fetchShipments();
+
+    if (btnGenerateCode && trackingCodeInput) {
+        btnGenerateCode.addEventListener("click", () => {
+            trackingCodeInput.value = generateRandomTracking();
+        });
+    }
 
     if (btnSearch && searchInput) {
         btnSearch.addEventListener("click", async () => {
@@ -511,6 +601,49 @@ document.addEventListener("DOMContentLoaded", () => {
         searchInput.addEventListener("keypress", (e) => {
             if (e.key === "Enter") {
                 btnSearch.click();
+            }
+        });
+    }
+
+    if (shipmentForm) {
+        shipmentForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            const trackingCode = trackingCodeInput.value.trim().toUpperCase();
+            const recipient = recipientInput.value.trim();
+            const address = addressInput.value.trim();
+            const status = statusSelect.value;
+            const packageType = packageTypeSelect.value;
+            const pin = packagePinInput.value.trim() || generateRandomPin();
+
+            btnSubmit.disabled = true;
+            if (btnSpinner) btnSpinner.classList.remove("hidden");
+
+            const coords = await geocodeAddress(address);
+            const newPackage = {
+                trackingCode,
+                recipient,
+                address,
+                status,
+                packageType,
+                pin,
+                lat: coords.lat,
+                lon: coords.lon
+            };
+
+            const created = await createShipment(newPackage);
+
+            btnSubmit.disabled = false;
+            if (btnSpinner) btnSpinner.classList.add("hidden");
+
+            if (created) {
+                showToast(`Envío ${trackingCode} creado exitosamente`, "success");
+                shipmentForm.reset();
+                packagePinInput.value = generateRandomPin();
+                trackingCodeInput.value = generateRandomTracking();
+
+                await fetchShipments();
+                selectShipmentForSimulation(created);
             }
         });
     }
