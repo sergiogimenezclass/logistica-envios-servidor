@@ -186,6 +186,21 @@ def update_envio(id):
         'lon': lon
     }), 200
 
+# Endpoint API REST: Eliminar un envío por ID
+@app.route('/api/envios/<int:id>', methods=['DELETE'])
+def delete_envio(id):
+    conn = get_db_connection()
+    envio = conn.execute('SELECT * FROM envios WHERE id = ?', (id,)).fetchone()
+    if not envio:
+        conn.close()
+        return jsonify({'error': 'Envío no encontrado'}), 404
+        
+    conn.execute('DELETE FROM envios WHERE id = ?', (id,))
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'message': f'Envío {id} eliminado correctamente', 'id': id}), 200
+
 if __name__ == '__main__':
     init_db()
     print("Base de datos SQLite inicializada. Servidor en http://localhost:5000")
