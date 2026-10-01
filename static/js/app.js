@@ -58,6 +58,36 @@ const statTransit = document.getElementById("stat-transit");
 const statDelivered = document.getElementById("stat-delivered");
 
 /**
+ * Muestra una notificación emergente tipo Toast
+ */
+function showToast(message, type = "info") {
+    const container = document.getElementById("toast-container");
+    if (!container) return;
+    const toast = document.createElement("div");
+
+    const styles = {
+        success: "toast-success",
+        error: "toast-error",
+        info: "toast-info",
+        warning: "toast-warning"
+    };
+
+    toast.className = `toast-msg opacity-0 ${styles[type] || styles.info}`;
+    toast.innerHTML = `<span>${message}</span>`;
+
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        toast.classList.remove("opacity-0");
+    }, 20);
+
+    setTimeout(() => {
+        toast.classList.add("opacity-0");
+        setTimeout(() => toast.remove(), 250);
+    }, 3200);
+}
+
+/**
  * Alterna la vista activa entre el 'Portal de Cliente' y el 'Panel de Operador'
  */
 window.switchRole = function (role) {
@@ -239,6 +269,8 @@ window.quickSearchDemo = async function (code) {
     const item = await fetchShipmentByTracking(code);
     if (item) {
         selectShipmentForSimulation(item);
+    } else {
+        showToast("Código de seguimiento no encontrado", "error");
     }
 };
 
@@ -468,7 +500,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 const item = await fetchShipmentByTracking(code);
                 if (item) {
                     selectShipmentForSimulation(item);
+                } else {
+                    showToast("Código de seguimiento no encontrado", "error");
                 }
+            } else {
+                showToast("Ingresá un código de guía", "warning");
             }
         });
 
