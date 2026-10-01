@@ -15,6 +15,10 @@ const tabOperator = document.getElementById("tab-operator");
 const viewClient = document.getElementById("view-client");
 const viewOperator = document.getElementById("view-operator");
 
+// Elementos del Portal de Cliente
+const searchInput = document.getElementById("search-tracking-input");
+const btnSearch = document.getElementById("btn-search-tracking");
+
 // Elementos del DOM del Operador
 const tableBody = document.getElementById("shipments-table-body");
 const counterBadge = document.getElementById("counter-badge");
@@ -228,8 +232,48 @@ async function fetchShipments() {
     }
 }
 
+/**
+ * Petición asíncrona para buscar un paquete por su código de guía (/api/envios/<tracking_code>)
+ */
+async function fetchShipmentByTracking(code) {
+    if (!code) return null;
+    try {
+        const response = await fetch(`/api/envios/${encodeURIComponent(code.trim().toUpperCase())}`);
+        if (!response.ok) {
+            if (response.status === 404) {
+                console.warn(`Envío ${code} no encontrado`);
+            }
+            return null;
+        }
+        const shipment = await response.json();
+        console.log(`Envío ${code} encontrado desde API:`, shipment);
+        return shipment;
+    } catch (error) {
+        console.error(`Error al consultar /api/envios/${code}:`, error);
+        return null;
+    }
+}
+
 // Inicialización al cargar el DOM
 document.addEventListener("DOMContentLoaded", () => {
     setupMap();
     fetchShipments();
+
+    if (btnSearch && searchInput) {
+        btnSearch.addEventListener("click", async () => {
+            const code = searchInput.value.trim();
+            if (code) {
+                const item = await fetchShipmentByTracking(code);
+                if (item) {
+                    console.log("Resultado de búsqueda:", item);
+                }
+            }
+        });
+
+        searchInput.addEventListener("keypress", (e) => {
+            if (e.key === "Enter") {
+                btnSearch.click();
+            }
+        });
+    }
 });
