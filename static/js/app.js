@@ -655,7 +655,7 @@ function renderShipmentsTable(filterText = "") {
     ${getStatusBadgeHtml(item.status)}
   </td>
   <td style="text-align: right; white-space: nowrap;">
-    <button title="Ver en cliente" class="btn-table-action">
+    <button onclick="switchRole('client'); quickSearchDemo('${item.trackingCode}')" title="Ver en cliente" class="btn-table-action">
       Rastrear
     </button>
     <button title="Rótulo" class="btn-table-action">
@@ -664,7 +664,7 @@ function renderShipmentsTable(filterText = "") {
     <button onclick="prepareEdit(${item.id})" title="Editar" class="btn-table-icon">
       ✎
     </button>
-    <button title="Eliminar" class="btn-table-icon delete">
+    <button onclick="confirmDeleteShipment(${item.id})" title="Eliminar" class="btn-table-icon delete">
       ✕
     </button>
   </td>
@@ -774,6 +774,45 @@ async function updateShipment(id, updatedData) {
         return null;
     }
 }
+
+/**
+ * Petición asíncrona DELETE para eliminar un envío por ID en la API Flask
+ */
+async function deleteShipment(id) {
+    try {
+        const response = await fetch(`/api/envios/${id}`, {
+            method: 'DELETE'
+        });
+
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error || `Error HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log(`Envío ${id} eliminado en backend SQLite:`, data);
+        return true;
+    } catch (error) {
+        console.error(`Error al eliminar envío ${id} vía DELETE /api/envios/<id>:`, error);
+        showToast(error.message || "Error al eliminar envío", "error");
+        return false;
+    }
+}
+
+/**
+ * Confirma y ejecuta la eliminación de un envío desde el panel de operador
+ */
+window.confirmDeleteShipment = async function (id) {
+    const item = shipments.find(s => s.id === id);
+    if (!item) return;
+    if (confirm(`¿Está seguro de eliminar el envío ${item.trackingCode} (${item.recipient})?`)) {
+        const success = await deleteShipment(id);
+        if (success) {
+            showToast(`Envío ${item.trackingCode} eliminado`, "warning");
+            await fetchShipments();
+        }
+    }
+};
 
 // Inicialización al cargar el DOM
 document.addEventListener("DOMContentLoaded", () => {
