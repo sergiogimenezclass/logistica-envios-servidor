@@ -19,6 +19,13 @@ let currentRoutePolyline = null;
 let currentTruckMarker = null;
 let currentHubMarker = null;
 let destinationMarker = null;
+
+// Variables de estado del simulador satelital
+let simulationInterval = null;
+let isSimulating = false;
+let simulationSpeed = 1;
+let simulationRoutePoints = [];
+let currentRouteStepIndex = 0;
 let activeSimulatedShipment = null;
 
 // Elementos del DOM de Navegación y Vistas
@@ -39,13 +46,23 @@ const clientPinDisplay = document.getElementById("client-pin-display");
 
 const simTrackingId = document.getElementById("sim-tracking-id");
 const simRouteInfo = document.getElementById("sim-route-info");
+const btnSimPlay = document.getElementById("btn-sim-play");
+const btnSimPlayIcon = document.getElementById("btn-sim-play-icon");
+const btnSimPlayText = document.getElementById("btn-sim-play-text");
+const btnSimReset = document.getElementById("btn-sim-reset");
 const simProgressBar = document.getElementById("sim-progress-bar");
 const simProgressText = document.getElementById("sim-progress-text");
 const simEtaText = document.getElementById("sim-eta-text");
 const timelineContainer = document.getElementById("timeline-container");
+const speedButtons = document.querySelectorAll(".sim-speed-btn");
 const quickDemoPills = document.getElementById("quick-demo-pills");
-const btnSimPlayText = document.getElementById("btn-sim-play-text");
-const btnSimPlayIcon = document.getElementById("btn-sim-play-icon");
+
+// Modales de Confirmación por PIN
+const pinModal = document.getElementById("pin-modal");
+const pinModalTracking = document.getElementById("pin-modal-tracking");
+const pinInputCode = document.getElementById("pin-input-code");
+const pinErrorMsg = document.getElementById("pin-error-msg");
+const btnValidatePin = document.getElementById("btn-validate-pin");
 
 // Elementos del DOM del Operador
 const shipmentForm = document.getElementById("shipment-form");
@@ -334,6 +351,7 @@ window.quickSearchDemo = async function (code) {
  */
 async function selectShipmentForSimulation(item) {
     if (!item) return;
+    stopSimulation();
     activeSimulatedShipment = item;
 
     if (clientTrackingCode) clientTrackingCode.textContent = item.trackingCode;
@@ -347,6 +365,7 @@ async function selectShipmentForSimulation(item) {
     if (simRouteInfo) simRouteInfo.textContent = `Calculando ruta hacia ${item.address}...`;
     if (simProgressBar) simProgressBar.style.width = "0%";
     if (simProgressText) simProgressText.textContent = "0%";
+    currentRouteStepIndex = 0;
 
     if (currentRoutePolyline) map.removeLayer(currentRoutePolyline);
     if (currentTruckMarker) map.removeLayer(currentTruckMarker);
@@ -380,11 +399,12 @@ async function selectShipmentForSimulation(item) {
     currentTruckMarker = L.marker([LOGISTIC_HUB.lat, LOGISTIC_HUB.lon], { icon: truckIcon }).addTo(map);
 
     const routeData = await fetchRoadRoute(LOGISTIC_HUB, item);
+    simulationRoutePoints = routeData.path;
 
     if (simRouteInfo) simRouteInfo.textContent = `${routeData.distanceKm} km · Tránsito regular (~${routeData.durationMin} min)`;
     if (simEtaText) simEtaText.textContent = `ETA: ~${routeData.durationMin} min`;
 
-    currentRoutePolyline = L.polyline(routeData.path, {
+    currentRoutePolyline = L.polyline(simulationRoutePoints, {
         color: "#4D148C",
         weight: 4,
         opacity: 0.9,
@@ -396,6 +416,128 @@ async function selectShipmentForSimulation(item) {
 
     if (btnSimPlayText) btnSimPlayText.textContent = "Iniciar";
     if (btnSimPlayIcon) btnSimPlayIcon.textContent = "▶";
+}
+
+/** Inicia o pausa la animación del vehículo sobre el mapa */
+function toggleSimulation() {
+    if (!simulationRoutePoints || simulationRoutePoints.length === 0) return;
+
+    if (isSimulating) {
+        pauseSimulation();
+    } else {
+        startSimulation();
+    }
+}
+
+/** Inicia el bucle asíncrono de movimiento del vehículo punto por punto */
+function startSimulation() {
+    if (currentRouteStepIndex >= simulationRoutePoints.length - 1) {
+        currentRouteStepIndex = 0;
+    }
+
+    isSimulating = true;
+    if (btnSimPlayIcon) btnSimPlayIcon.textContent = "⏸";
+    if (btnSimPlayText) btnSimPlayText.textContent = "Pausar";
+
+    const baseIntervalMs = Math.max(20, Math.floor(140 / simulationSpeed));
+
+    clearInterval(simulationInterval);
+    simulationInterval = setInterval(() => {
+        if (currentRouteStepIndex < simulationRoutePoints.length) {
+            const currentPoint = simulationRoutePoints[currentRouteStepIndex];
+            if (currentTruckMarker) currentTruckMarker.setLatLng(currentPoint);
+
+            const progress = (currentRouteStepIndex / (simulationRoutePoints.length - 1)) * 100;
+            if (simProgressBar) simProgressBar.style.width = `${progress}%`;
+            if (simProgressText) simProgressText.textContent = `${Math.round(progress)}%`;
+
+            renderTimeline(progress);
+
+            if (currentRouteStepIndex % 8 === 0 && map) {
+                map.panTo(currentPoint, { animate: true, duration: 0.3 });
+            }
+
+            currentRouteStepIndex++;
+        } else {
+            arriveAtDestinationPromptPin();
+        }
+    }, baseIntervalMs);
+}
+
+/** Pausa el avance del simulador */
+function pauseSimulation() {
+    isSimulating = false;
+    clearInterval(simulationInterval);
+    if (btnSimPlayIcon) btnSimPlayIcon.textContent = "▶";
+    if (btnSimPlayText) btnSimPlayText.textContent = "Continuar";
+}
+
+/** Detiene la simulación y reinicia los controles */
+function stopSimulation() {
+    isSimulating = false;
+    clearInterval(simulationInterval);
+    currentRouteStepIndex = 0;
+    if (btnSimPlayIcon) btnSimPlayIcon.textContent = "▶";
+    if (btnSimPlayText) btnSimPlayText.textContent = "Iniciar";
+}
+
+/** Se ejecuta al completar el recorrido y abre la validación por PIN */
+function arriveAtDestinationPromptPin() {
+    stopSimulation();
+    if (simProgressBar) simProgressBar.style.width = "99%";
+    if (simProgressText) simProgressText.textContent = "En puerta";
+    showToast("Móvil en destino. Requiere PIN de seguridad", "warning");
+    openPinModal(activeSimulatedShipment);
+}
+
+/** Abre el modal de confirmación de entrega por PIN */
+function openPinModal(shipment) {
+    if (!shipment || !pinModal) return;
+    if (pinModalTracking) pinModalTracking.textContent = `${shipment.trackingCode} — ${shipment.recipient}`;
+    if (pinInputCode) pinInputCode.value = "";
+    if (pinErrorMsg) pinErrorMsg.classList.add("hidden");
+    pinModal.classList.remove("hidden");
+    pinModal.classList.add("flex");
+    setTimeout(() => { if (pinInputCode) pinInputCode.focus(); }, 100);
+}
+
+/** Cierra el modal de confirmación por PIN */
+function closePinModal() {
+    if (!pinModal) return;
+    pinModal.classList.add("hidden");
+    pinModal.classList.remove("flex");
+}
+
+/** Valida si el PIN ingresado por el usuario coincide con el asignado al envío */
+async function validateDeliveryPin() {
+    if (!activeSimulatedShipment || !pinInputCode) return;
+    const entered = pinInputCode.value.trim();
+
+    if (entered === activeSimulatedShipment.pin) {
+        closePinModal();
+        await completeSimulation();
+    } else {
+        if (pinErrorMsg) pinErrorMsg.classList.remove("hidden");
+        pinInputCode.classList.add("border-rose-500", "animate-shake");
+        setTimeout(() => pinInputCode.classList.remove("animate-shake"), 500);
+    }
+}
+
+/** Marca la entrega como completada en la API Flask mediante PUT y actualiza el estado */
+async function completeSimulation() {
+    if (simProgressBar) simProgressBar.style.width = "100%";
+    if (simProgressText) simProgressText.textContent = "100%";
+    renderTimeline(100);
+
+    if (activeSimulatedShipment) {
+        activeSimulatedShipment.status = "Entregado";
+        const updated = await updateShipment(activeSimulatedShipment.id, { status: "Entregado" });
+        if (updated) {
+            if (clientStatusBadge) clientStatusBadge.innerHTML = getStatusBadgeHtml("Entregado");
+            await fetchShipments();
+            showToast(`Envío ${activeSimulatedShipment.trackingCode} entregado formalmente`, "success");
+        }
+    }
 }
 
 /**
@@ -549,7 +691,7 @@ async function fetchShipments() {
         refreshMapMarkers();
         renderQuickDemoPills();
 
-        if (shipments.length > 0) {
+        if (shipments.length > 0 && !activeSimulatedShipment) {
             selectShipmentForSimulation(shipments[0]);
         }
         return shipments;
@@ -640,6 +782,38 @@ document.addEventListener("DOMContentLoaded", () => {
 
     setupMap();
     fetchShipments();
+
+    // Event listeners de simulación satelital y PIN
+    if (btnSimPlay) btnSimPlay.addEventListener("click", toggleSimulation);
+    if (btnSimReset) btnSimReset.addEventListener("click", () => {
+        stopSimulation();
+        if (simulationRoutePoints.length > 0 && currentTruckMarker) {
+            currentTruckMarker.setLatLng(simulationRoutePoints[0]);
+            if (simProgressBar) simProgressBar.style.width = "0%";
+            if (simProgressText) simProgressText.textContent = "0%";
+            renderTimeline(0);
+            if (map) map.panTo(simulationRoutePoints[0]);
+        }
+    });
+
+    if (btnValidatePin) btnValidatePin.addEventListener("click", validateDeliveryPin);
+    if (pinInputCode) pinInputCode.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") validateDeliveryPin();
+    });
+
+    speedButtons.forEach(btn => {
+        btn.addEventListener("click", () => {
+            speedButtons.forEach(b => {
+                b.classList.remove("bg-fedex-purple", "text-white");
+                b.classList.add("text-carbon-600");
+            });
+            btn.classList.add("bg-fedex-purple", "text-white");
+            btn.classList.remove("text-carbon-600");
+
+            simulationSpeed = parseInt(btn.getAttribute("data-speed"));
+            if (isSimulating) startSimulation();
+        });
+    });
 
     if (btnGenerateCode && trackingCodeInput) {
         btnGenerateCode.addEventListener("click", () => {
