@@ -75,6 +75,28 @@ def get_envios():
         })
     return jsonify(result), 200
 
+# Endpoint API REST: Obtener un envío por su código de seguimiento (tracking_code)
+@app.route('/api/envios/<tracking_code>', methods=['GET'])
+def get_envio_by_tracking(tracking_code):
+    conn = get_db_connection()
+    envio = conn.execute('SELECT * FROM envios WHERE tracking_code = ?', (tracking_code,)).fetchone()
+    conn.close()
+    
+    if envio is None:
+        return jsonify({'error': 'Envío no encontrado'}), 404
+        
+    return jsonify({
+        'id': envio['id'],
+        'trackingCode': envio['tracking_code'],
+        'recipient': envio['recipient'],
+        'address': envio['address'],
+        'status': envio['status'],
+        'packageType': envio['package_type'],
+        'pin': envio['pin'],
+        'lat': envio['lat'],
+        'lon': envio['lon']
+    }), 200
+
 if __name__ == '__main__':
     init_db()
     print("Base de datos SQLite inicializada. Servidor en http://localhost:5000")
