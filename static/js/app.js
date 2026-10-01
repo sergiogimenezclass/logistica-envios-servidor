@@ -428,6 +428,44 @@ function updateOperatorStats() {
 }
 
 /**
+ * Carga los datos de un envío en el formulario para su modificación
+ */
+window.prepareEdit = function (id) {
+    const item = shipments.find(s => s.id === id);
+    if (!item) return;
+
+    if (editIdInput) editIdInput.value = item.id;
+    if (trackingCodeInput) trackingCodeInput.value = item.trackingCode;
+    if (recipientInput) recipientInput.value = item.recipient;
+    if (addressInput) addressInput.value = item.address;
+    if (statusSelect) statusSelect.value = item.status;
+    if (packageTypeSelect) packageTypeSelect.value = item.packageType || "Paquete estándar (2 - 10kg)";
+    if (packagePinInput) packagePinInput.value = item.pin || generateRandomPin();
+
+    if (formTitle) formTitle.textContent = "Editar Envío";
+    if (formBadge) formBadge.textContent = "Edición";
+    if (btnSubmitText) btnSubmitText.textContent = "Actualizar Envío";
+    if (btnCancel) btnCancel.classList.remove("hidden");
+
+    if (shipmentForm) shipmentForm.scrollIntoView({ behavior: "smooth" });
+};
+
+/**
+ * Restablece el formulario al modo 'Alta'
+ */
+function resetForm() {
+    if (!shipmentForm) return;
+    shipmentForm.reset();
+    if (editIdInput) editIdInput.value = "";
+    if (packagePinInput) packagePinInput.value = generateRandomPin();
+    if (trackingCodeInput) trackingCodeInput.value = generateRandomTracking();
+    if (formTitle) formTitle.textContent = "Registrar Nuevo Envío";
+    if (formBadge) formBadge.textContent = "Alta";
+    if (btnSubmitText) btnSubmitText.textContent = "Guardar Envío";
+    if (btnCancel) btnCancel.classList.add("hidden");
+}
+
+/**
  * Renderiza la planilla de envíos del operador
  */
 function renderShipmentsTable(filterText = "") {
@@ -481,7 +519,7 @@ function renderShipmentsTable(filterText = "") {
     <button title="Rótulo" class="btn-table-action">
       Rótulo
     </button>
-    <button title="Editar" class="btn-table-icon">
+    <button onclick="prepareEdit(${item.id})" title="Editar" class="btn-table-icon">
       ✎
     </button>
     <button title="Eliminar" class="btn-table-icon delete">
@@ -569,6 +607,32 @@ async function createShipment(shipmentData) {
     }
 }
 
+/**
+ * Petición asíncrona PUT para actualizar un envío existente en la API Flask
+ */
+async function updateShipment(id, updatedData) {
+    try {
+        const response = await fetch(`/api/envios/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updatedData)
+        });
+
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error || `Error HTTP ${response.status}`);
+        }
+
+        const updatedShipment = await response.json();
+        console.log(`Envío ${id} actualizado en backend SQLite:`, updatedShipment);
+        return updatedShipment;
+    } catch (error) {
+        console.error(`Error al actualizar envío ${id} vía PUT /api/envios/<id>:`, error);
+        showToast(error.message || "Error al actualizar envío", "error");
+        return null;
+    }
+}
+
 // Inicialización al cargar el DOM
 document.addEventListener("DOMContentLoaded", () => {
     if (packagePinInput) packagePinInput.value = generateRandomPin();
@@ -581,6 +645,10 @@ document.addEventListener("DOMContentLoaded", () => {
         btnGenerateCode.addEventListener("click", () => {
             trackingCodeInput.value = generateRandomTracking();
         });
+    }
+
+    if (btnCancel) {
+        btnCancel.addEventListener("click", resetForm);
     }
 
     if (btnSearch && searchInput) {
@@ -609,6 +677,7 @@ document.addEventListener("DOMContentLoaded", () => {
         shipmentForm.addEventListener("submit", async (e) => {
             e.preventDefault();
 
+            const id = editIdInput.value;
             const trackingCode = trackingCodeInput.value.trim().toUpperCase();
             const recipient = recipientInput.value.trim();
             const address = addressInput.value.trim();
@@ -619,31 +688,64 @@ document.addEventListener("DOMContentLoaded", () => {
             btnSubmit.disabled = true;
             if (btnSpinner) btnSpinner.classList.remove("hidden");
 
-            const coords = await geocodeAddress(address);
-            const newPackage = {
-                trackingCode,
-                recipient,
-                address,
-                status,
-                packageType,
-                pin,
-                lat: coords.lat,
-                lon: coords.lon
-            };
+            if (id) {
+                // Modo Edición (PUT)
+                const existing = shipments.find(s => s.id === parseInt(id));
+                let lat = existing ? existing.lat : -34.6037;
+                let lon = existing ? existing.lon : -58.3816;
 
-            const created = await createShipment(newPackage);
+                if (existing && existing.address !== address) {
+                    const coords = await geocodeAddress(address);
+                    lat = coords.lat;
+                    lon = coords.lon;
+                }
 
-            btnSubmit.disabled = false;
-            if (btnSpinner) btnSpinner.classList.add("hidden");
+                const updatedData = {
+                    trackingCode,
+                    recipient,
+                    address,
+                    status,
+                    packageType,
+                    pin,
+                    lat,
+                    lon
+                };
 
-            if (created) {
-                showToast(`Envío ${trackingCode} creado exitosamente`, "success");
-                shipmentForm.reset();
-                packagePinInput.value = generateRandomPin();
-                trackingCodeInput.value = generateRandomTracking();
+                const updated = await updateShipment(parseInt(id), updatedData);
 
-                await fetchShipments();
-                selectShipmentForSimulation(created);
+                btnSubmit.disabled = false;
+                if (btnSpinner) btnSpinner.classList.add("hidden");
+
+                if (updated) {
+                    showToast(`Envío ${trackingCode} actualizado exitosamente`, "info");
+                    resetForm();
+                    await fetchShipments();
+                }
+            } else {
+                // Modo Alta (POST)
+                const coords = await geocodeAddress(address);
+                const newPackage = {
+                    trackingCode,
+                    recipient,
+                    address,
+                    status,
+                    packageType,
+                    pin,
+                    lat: coords.lat,
+                    lon: coords.lon
+                };
+
+                const created = await createShipment(newPackage);
+
+                btnSubmit.disabled = false;
+                if (btnSpinner) btnSpinner.classList.add("hidden");
+
+                if (created) {
+                    showToast(`Envío ${trackingCode} creado exitosamente`, "success");
+                    resetForm();
+                    await fetchShipments();
+                    selectShipmentForSimulation(created);
+                }
             }
         });
     }
