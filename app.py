@@ -1,6 +1,6 @@
 import os
 import sqlite3
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, request
 
 # Inicializar aplicación Flask
 app = Flask(__name__)
@@ -96,6 +96,52 @@ def get_envio_by_tracking(tracking_code):
         'lat': envio['lat'],
         'lon': envio['lon']
     }), 200
+
+# Endpoint API REST: Crear un nuevo envío
+@app.route('/api/envios', methods=['POST'])
+def create_envio():
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'JSON payload requerido'}), 400
+        
+    tracking_code = data.get('trackingCode')
+    recipient = data.get('recipient')
+    address = data.get('address')
+    status = data.get('status', 'En preparación')
+    package_type = data.get('packageType', 'FedEx Express Standard')
+    pin = data.get('pin', '0000')
+    lat = data.get('lat', -34.6037)
+    lon = data.get('lon', -58.3816)
+    
+    if not tracking_code or not recipient or not address:
+        return jsonify({'error': 'Campos obligatorios faltantes'}), 400
+        
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO envios (tracking_code, recipient, address, status, package_type, pin, lat, lon)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (tracking_code, recipient, address, status, package_type, pin, lat, lon))
+        new_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'id': new_id,
+            'trackingCode': tracking_code,
+            'recipient': recipient,
+            'address': address,
+            'status': status,
+            'packageType': package_type,
+            'pin': pin,
+            'lat': lat,
+            'lon': lon
+        }), 201
+    except sqlite3.IntegrityError:
+        return jsonify({'error': 'El código de seguimiento ya existe'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     init_db()
